@@ -5,6 +5,9 @@ from selenium.webdriver.common.action_chains import ActionChains
 import csv
 import time
 import random
+import re
+
+url_regex = r'(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})'
 
 
 """ Initialize CSV """
@@ -24,22 +27,28 @@ with open('LI_Block_Data.csv', 'a', newline='') as block_file, open('LI_Sentence
 
     driver = webdriver.Chrome(executable_path=local_chromedriver_exe, chrome_options=options)
     original_window = driver.current_window_handle  # Store the ID of the original window
-    url = "https://www.linkedin.com/company/accenture/people/?keywords="
+    # company = "accenture"
+    company = "facebook"
+    url = "https://www.linkedin.com/company/" + company + "/people/?keywords="
 
     letterlistA = ["a", "e", "i", "o", "u"]
     letterlistB = ["j", "h", "g", "f", "d", "a", "e", "i", "o", "u", "l", "r", "t", "p", "k"]
     for letter in letterlistB:
         searchkey = letter + random.choice(letterlistA)
         driver.get(url + searchkey)
-        time.sleep(5)
 
+    # namelist = ["James", "Mark", "John", "Patricia", "Robert", "Jennifer", "Michael", "Linda", "William", "Elicia", "David", "Richard", "Susanna", "Joe", "Jessie", "Thomas", "Sarah", "Charles", "Karen", "Chris", ""]
+    # for name in namelist:
+    #     driver.get(url + name)
+
+        time.sleep(5)
         """ Search for users """
         # peopleSearchBox = driver.find_element_by_xpath("//input[@id='people-search-keywords']")
         # peopleSearchBox.send_keys('b')
         # peopleSearchBox.send_keys(Keys.ENTER)
 
         x = 0
-        while x < 5:
+        while x < 10:
             driver.find_element_by_xpath("//html[1]").send_keys(Keys.END)
             time.sleep(10)
             x = x+1
@@ -70,9 +79,13 @@ with open('LI_Block_Data.csv', 'a', newline='') as block_file, open('LI_Sentence
                             experienceText = driver.find_element_by_xpath(
                                 "//h2[text()='Experience']/../..//li[{}]//div[@class='pv-entity__extra-details ember-view']".format(
                                     experienceInstance)).text
-                            expEditText = experienceText.replace("=", "").replace("-", "").replace(",", "").replace("…",
-                                                                                                                    "").replace(
-                                "see more", "").replace("\n", " ").strip().replace("•", ".").replace("·", ".")
+                            expEditText = experienceText.replace("=", "").replace("-", "").replace(",", "").replace("…", "").replace(
+                                "see more", "").replace("\n", " ").strip().replace("•", ".").replace("·", ".").replace("*", "").replace(">", "")
+                            expEditText = re.sub(r'[ ]{2,}', " ", expEditText)  # replaces any instance of more than one space being used
+                            urlList = re.findall(url_regex, expEditText)
+                            for url in urlList:
+                                sentence_writer.writerow([url, "0"])
+                            expEditText = re.sub(url_regex, "", expEditText)  # removes urls
                             block_writer.writerow([expEditText, "1"])
                             print(expEditText)
                             # split the text up by period
@@ -93,15 +106,21 @@ with open('LI_Block_Data.csv', 'a', newline='') as block_file, open('LI_Sentence
                                 "//h2[text()='Education']/../..//li[{}]".format(educationInstance)).text
                             # uniName = driver.find_element_by_xpath("//h2[text()='Education']/../..//li[{}]//h3".format(educationInstance)).text
                             # degreeName = driver.find_element_by_xpath("//h2[text()='Education']/../..//li[{}]//span[@class='pv-entity__comma-item']".format(educationInstance)).text
-                            eduEditText = educationText.replace("=", "").replace("-", " ").replace(",", "").replace("…",
-                                                                                                                    "").replace(
+                            eduEditText = educationText.replace("=", "").replace("-", " ").replace(",", "").replace("…", "").replace(
                                 "see more", "").replace("\n", " ").strip().replace("Degree Name", " ").replace(
                                 "Field Of Study", " ").replace("Dates attended or expected graduation", " ").replace(
-                                "Dates attended or expected graduation", " ").replace("Activities and Societies:",
-                                                                                      " ").replace("•", ".").replace("·",
-                                                                                                                     ".")
+                                "Dates attended or expected graduation", " ").replace("Activities and Societies:", " ").replace("•", ".").replace("·", ".").replace("*", "").replace(">", "")
+                            eduEditText = re.sub(r'[ ]{2,}', " ", eduEditText)  # replaces any instance of more than one space being used
+                            urlList = re.findall(url_regex, eduEditText)
+                            for url in urlList:
+                                sentence_writer.writerow([url, "0"])
+                            eduEditText = re.sub(url_regex, "", eduEditText)  # removes urls
                             block_writer.writerow([eduEditText, "0"])
-                            # sentence_writer.writerow([full_line, "0"])
+                            # splitTextList = expEditText.split('.')
+                            splitTextList = re.split(r'[a-zA-Z]{2,}\.', LicCertEditText)  # Will only split strings by the delimiter of a period preceded by 2 or more alphanumeric character
+                            for line in splitTextList:
+                                full_line = line + "."  # Adding in period
+                                sentence_writer.writerow([full_line, "0"])
                         except Exception as e:
                             print("Unable to find education text. \n", e)
 
@@ -117,9 +136,18 @@ with open('LI_Block_Data.csv', 'a', newline='') as block_file, open('LI_Sentence
                             LicCertEditText = LicCertText.replace("=", "").replace("-", " ").replace(",", " ").replace("…", "").replace(
                                 "see more", "").replace("\n", " ").strip().replace("Issuing authority", " ").replace(
                                 " Issued date and  if applicable  expiration date of the certification or license",
-                                " ").replace("•", ".").replace("·", ".").replace("No Expiration Date", "")
+                                " ").replace("•", ".").replace("·", ".").replace("No Expiration Date", "").replace("*", "").replace(">", "")
+                            LicCertEditText = re.sub(r'[ ]{2,}', " ", LicCertEditText)  # replaces any instance of more than one space being used
+                            urlList = re.findall(url_regex, LicCertEditText)
+                            for url in urlList:
+                                sentence_writer.writerow([url, "0"])
+                            LicCertEditText = re.sub(url_regex, " ", LicCertEditText)  # removes URLs
                             block_writer.writerow([LicCertEditText, "0"])
-                            # sentence_writer.writerow([full_line, "0"])
+                            # splitTextList = LicCertEditText.split('.')
+                            splitTextList = re.split(r'[a-zA-Z]{2,}\.', LicCertEditText)  # Will only split strings by the delimiter of a period preceded by 2 or more alphanumeric character
+                            for line in splitTextList:
+                                full_line = line + "."  # Adding in period
+                                sentence_writer.writerow([full_line, "0"])
                         except Exception as e:
                             print("Unable to find licenses and Certifications text. \n", e)
 
